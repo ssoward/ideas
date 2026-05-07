@@ -1,6 +1,6 @@
 {
   "name": "humanmark",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Chrome extension to flag AI-generated text",
   "scripts": {
     "dev": "vite build --watch",
