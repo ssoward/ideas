@@ -65,12 +65,14 @@ export function applyResult(nodeId: string, result: BlockResult, settings: Setti
   //    so it wins over any host-page rule including LinkedIn's !important rules.
   addOutlineRule(nodeId, color);
 
-  // 2. Badge chip — position:fixed, all styles inline, appended to <body>.
-  //    Lives entirely outside LinkedIn's component tree; can't be clipped.
+  // 2. Badge chip — position:fixed, appended to documentElement so it isn't
+  //    captured by any transform/will-change/filter applied to <body> (which
+  //    LinkedIn does on feed scaffolds, creating a containing block for
+  //    fixed-positioned descendants and visually trapping the badge).
   removeBadge(nodeId);
   const badge = createBadge(nodeId, result, level, color);
-  document.body.appendChild(badge);
   positionBadge(badge, el);
+  document.documentElement.appendChild(badge);
 
   // 3. Navigation index
   if (!flaggedNodes.includes(nodeId)) {
@@ -130,13 +132,22 @@ function createBadge(
     "letter-spacing:0.3px",
     "cursor:pointer",
     "user-select:none",
-    `z-index:${Number.MAX_SAFE_INTEGER}`,
+    "z-index:2147483647",
     "pointer-events:auto",
     "line-height:1.6",
     flagsHidden ? "display:none" : "display:inline-flex",
     "align-items:center",
     "gap:4px",
   ].join(";");
+
+  // Force the critical positioning props with !important so host-page CSS
+  // resets (e.g. body > div { display: block !important }) cannot break us.
+  badge.style.setProperty("position", "fixed", "important");
+  badge.style.setProperty("z-index", "2147483647", "important");
+  badge.style.setProperty("display", flagsHidden ? "none" : "inline-flex", "important");
+  badge.style.setProperty("visibility", "visible", "important");
+  badge.style.setProperty("opacity", "1", "important");
+  badge.style.setProperty("pointer-events", "auto", "important");
 
   badge.textContent = label;
   badge.title = `Source: ${result.provider ?? result.source} · ${new Date(result.analyzedAt).toLocaleTimeString()}`;
@@ -201,7 +212,7 @@ function injectTogglePill(settings: Settings): void {
     "background:#0d0d1a", `color:${ai}`,
     "font-size:11px", "font-family:system-ui,sans-serif", "font-weight:800",
     "padding:7px 12px", "border-radius:99px", "cursor:grab", "user-select:none",
-    `z-index:${Number.MAX_SAFE_INTEGER}`,
+    "z-index:2147483647",
     `box-shadow:0 0 12px ${ai}77,0 2px 8px rgba(0,0,0,0.5)`,
     `border:1px solid ${ai}55`,
     "display:flex", "align-items:center", "gap:6px", "pointer-events:auto",
@@ -249,17 +260,19 @@ function injectTogglePill(settings: Settings): void {
   pill.addEventListener("click", () => {
     flagsHidden = !flagsHidden;
     document.querySelectorAll<HTMLElement>("[data-hm-target-id]").forEach((b) => {
-      b.style.display = flagsHidden ? "none" : "inline-flex";
+      b.style.setProperty("display", flagsHidden ? "none" : "inline-flex", "important");
     });
-    // Dim outlines when hidden
-    if (outlineSheet) {
-      outlineSheet.disabled = flagsHidden;
-    }
+    if (outlineSheet) outlineSheet.disabled = flagsHidden;
     pill.style.opacity = flagsHidden ? "0.45" : "1";
     pill.title = flagsHidden ? "Flags hidden — click to show" : "";
   });
 
-  document.body.appendChild(pill);
+  pill.style.setProperty("position", "fixed", "important");
+  pill.style.setProperty("z-index", "2147483647", "important");
+  pill.style.setProperty("display", "flex", "important");
+  pill.style.setProperty("visibility", "visible", "important");
+
+  document.documentElement.appendChild(pill);
   togglePill = pill;
 }
 
