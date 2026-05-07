@@ -183,6 +183,8 @@ function scheduleReposition(): void {
       if (target) positionBadge(badge, target);
       else badge.remove();
     });
+    pruneFlaggedNodes();
+    updateNavUI();
   });
 }
 
@@ -208,9 +210,15 @@ function injectTogglePill(settings: Settings): void {
   // Restore saved drag position
   const saved = sessionStorage.getItem("hm-pill-pos");
   if (saved) {
-    const { x, y } = JSON.parse(saved) as { x: number; y: number };
-    pill.style.left = `${x}px`; pill.style.top = `${y}px`;
-    pill.style.right = "auto"; pill.style.bottom = "auto";
+    try {
+      const { x, y } = JSON.parse(saved) as { x: number; y: number };
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        pill.style.left = `${x}px`; pill.style.top = `${y}px`;
+        pill.style.right = "auto"; pill.style.bottom = "auto";
+      }
+    } catch {
+      sessionStorage.removeItem("hm-pill-pos");
+    }
   }
 
   // "HM" label
@@ -264,17 +272,30 @@ function navBtn(text: string, title: string): HTMLButtonElement {
 }
 
 function navigateTo(index: number): void {
-  if (flaggedNodes.length === 0) return;
+  pruneFlaggedNodes();
+  if (flaggedNodes.length === 0) {
+    currentNavIndex = -1;
+    updateNavUI();
+    return;
+  }
   currentNavIndex = ((index % flaggedNodes.length) + flaggedNodes.length) % flaggedNodes.length;
   const el = document.querySelector<HTMLElement>(`[data-hm-id="${flaggedNodes[currentNavIndex]}"]`);
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" });
-    // Pulse the outline to draw eye
     const original = el.style.outlineWidth;
     el.style.outlineWidth = "6px";
     setTimeout(() => { el.style.outlineWidth = original; }, 700);
   }
   updateNavUI();
+}
+
+function pruneFlaggedNodes(): void {
+  for (let i = flaggedNodes.length - 1; i >= 0; i--) {
+    if (!document.querySelector(`[data-hm-id="${flaggedNodes[i]}"]`)) {
+      flaggedNodes.splice(i, 1);
+      if (i <= currentNavIndex) currentNavIndex = Math.max(-1, currentNavIndex - 1);
+    }
+  }
 }
 
 function updateNavUI(): void {

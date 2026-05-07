@@ -11,6 +11,13 @@ interface QueueEntry {
 
 const queue: Map<string, QueueEntry> = new Map();
 let processing = false;
+let active: Settings | null = null;
+let postProcess: ((score: number, text: string) => number) | null = null;
+
+export function setActiveSettings(s: Settings): void { active = s; }
+export function setPostProcessor(fn: ((score: number, text: string) => number) | null): void {
+  postProcess = fn;
+}
 
 const io = new IntersectionObserver((entries) => {
   for (const entry of entries) {
@@ -34,7 +41,6 @@ export function enqueue(el: HTMLElement): void {
   io.observe(el);
   queue.set(nodeId, { el, priority: 0 });
 
-  // Always schedule — flush() is idempotent and guards re-entry via processing flag
   scheduleFlush();
 }
 
@@ -44,22 +50,25 @@ function scheduleFlush(): void {
 
 async function flush(): Promise<void> {
   if (queue.size === 0) return;
-  if (processing) return; // already draining; scheduleFlush will re-enter when done
+  if (processing) return;
 
-  if (isPaused()) {
+  if (isPaused() || !active) {
     setTimeout(flush, 1000);
     return;
   }
 
   processing = true;
 
-  // Sort: visible first
   const sorted = [...queue.entries()].sort((a, b) => b[1].priority - a[1].priority);
   const batch = sorted.slice(0, BATCH_SIZE);
+  const settings = active;
 
   for (const [nodeId, entry] of batch) {
     queue.delete(nodeId);
     io.unobserve(entry.el);
+
+    // Element may have been detached between enqueue and flush
+    if (!entry.el.isConnected) continue;
 
     const text = extractText(entry.el);
     const hash = hashText(text);
@@ -70,20 +79,16 @@ async function flush(): Promise<void> {
       payload: { hash, text, nodeId },
     };
 
-    chrome.runtime.sendMessage(msg, (resp: MessageResponse) => {
-      if (resp?.type === "BLOCK_RESULT") {
-        const settings = entry.el.dataset.hmSettings
-          ? (JSON.parse(entry.el.dataset.hmSettings) as Settings)
-          : null;
-        if (settings) {
-          // Apply platform-specific score adjustment if available
-          const postProcess = (window as unknown as Record<string, unknown>).__hmPostProcess as
-            ((score: number, text: string) => number) | undefined;
-          if (postProcess) {
-            resp.result.score = Math.min(1, Math.max(0, postProcess(resp.result.score, text)));
-          }
-          applyResult(nodeId, resp.result, settings);
+    chrome.runtime.sendMessage(msg, (resp: MessageResponse | undefined) => {
+      if (chrome.runtime.lastError || !resp) {
+        applyState(nodeId, "error");
+        return;
+      }
+      if (resp.type === "BLOCK_RESULT") {
+        if (postProcess) {
+          resp.result.score = Math.min(1, Math.max(0, postProcess(resp.result.score, text)));
         }
+        applyResult(nodeId, resp.result, settings);
       } else {
         applyState(nodeId, "skipped");
       }
@@ -93,4 +98,3 @@ async function flush(): Promise<void> {
   processing = false;
   if (queue.size > 0) setTimeout(flush, 400);
 }
-

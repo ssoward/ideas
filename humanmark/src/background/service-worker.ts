@@ -4,7 +4,6 @@ import { ADAPTERS, heuristicScore, buildResult } from "./api-client";
 import { cacheGet, cacheSet, cacheClearExpired } from "./cache";
 import { checkRateLimit } from "./rate-limiter";
 
-// Rehydrate settings — deep-merge nested objects so new fields always have defaults
 async function getSettings(): Promise<Settings> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
   const saved = (result[STORAGE_KEYS.SETTINGS] as Partial<Settings>) ?? {};
@@ -19,24 +18,30 @@ async function getSettings(): Promise<Settings> {
 
 async function getStats(): Promise<Stats> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.STATS);
-  return result[STORAGE_KEYS.STATS] as Stats ?? {
+  return (result[STORAGE_KEYS.STATS] as Stats) ?? {
     totalScanned: 0, apiCallCount: 0, cacheHits: 0, flaggedCount: 0, lastReset: Date.now(),
   };
 }
 
-async function incrementStat(field: keyof Omit<Stats, "lastReset">, value = 1): Promise<void> {
-  const stats = await getStats();
-  stats[field] += value;
-  await chrome.storage.local.set({ [STORAGE_KEYS.STATS]: stats });
+// Serialize stat updates so concurrent ANALYZE_BLOCK messages don't drop counts
+// in the read-modify-write window.
+let statsChain: Promise<void> = Promise.resolve();
+function bumpStats(deltas: Partial<Omit<Stats, "lastReset">>): Promise<void> {
+  statsChain = statsChain.then(async () => {
+    const stats = await getStats();
+    for (const [k, v] of Object.entries(deltas)) {
+      stats[k as keyof Stats] = (stats[k as keyof Stats] as number) + (v as number);
+    }
+    await chrome.storage.local.set({ [STORAGE_KEYS.STATS]: stats });
+  }).catch(() => {});
+  return statsChain;
 }
 
-// On install/update, re-save settings to pick up any new default fields
 chrome.runtime.onInstalled.addListener(async () => {
   const fresh = await getSettings();
   await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: fresh });
 });
 
-// Schedule periodic cache cleanup
 chrome.alarms.create("cache-cleanup", { periodInMinutes: 360 });
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === "cache-cleanup") await cacheClearExpired();
@@ -47,7 +52,7 @@ chrome.runtime.onMessage.addListener(
     handleMessage(msg).then(sendResponse).catch((err) => {
       sendResponse({ type: "ERROR", reason: String(err) });
     });
-    return true; // keep channel open for async response
+    return true;
   }
 );
 
@@ -71,42 +76,55 @@ async function handleMessage(msg: MessageRequest): Promise<MessageResponse> {
     const { hash, text } = msg.payload;
     const settings = await getSettings();
 
-    // Check cache first
     const cached = await cacheGet(hash);
     if (cached) {
-      await incrementStat("cacheHits");
-      if (cached.score >= settings.threshold.uncertain) await incrementStat("flaggedCount");
+      // Cache hits count toward "scanned" too — same content was evaluated
+      // once before, but the user is seeing it now. flaggedCount only bumps
+      // on the original analysis (counted at cache-write time) so cached
+      // re-views don't inflate the flag counter.
+      void bumpStats({ cacheHits: 1, totalScanned: 1 });
       return { type: "BLOCK_RESULT", result: { ...cached, source: "cache" } };
     }
 
-    await incrementStat("totalScanned");
-
-    // Use API if configured and privacy acknowledged
-    if (
+    // Use the configured API only if there's enough text to be worth a quota hit
+    const useApi =
       settings.apiProvider !== "none" &&
       settings.apiKey &&
-      settings.privacyAcknowledged
-    ) {
+      settings.privacyAcknowledged &&
+      text.length >= settings.minTextLength;
+
+    if (useApi) {
       const adapter = ADAPTERS[settings.apiProvider];
       if (adapter) {
         const allowed = await checkRateLimit(adapter.name, adapter.requestsPerMin);
         if (allowed) {
-          const truncated = text.slice(0, adapter.maxChars);
-          const score = await adapter.analyze(truncated, settings.apiKey);
-          const result = buildResult(hash, score, "api", adapter.name);
-          await cacheSet(hash, result);
-          await incrementStat("apiCallCount");
-          if (score >= settings.threshold.uncertain) await incrementStat("flaggedCount");
-          return { type: "BLOCK_RESULT", result };
+          try {
+            const truncated = text.slice(0, adapter.maxChars);
+            const score = await adapter.analyze(truncated, settings.apiKey);
+            const result = buildResult(hash, score, "api", adapter.name);
+            await cacheSet(hash, result);
+            void bumpStats({
+              apiCallCount: 1,
+              totalScanned: 1,
+              flaggedCount: score >= settings.threshold.uncertain ? 1 : 0,
+            });
+            return { type: "BLOCK_RESULT", result };
+          } catch (err) {
+            // Network error / quota / bad key — silently fall through to heuristic.
+            // Logging at warn level only so production users aren't spammed.
+            console.warn("[HumanMark] API failed, using heuristic:", err);
+          }
         }
       }
     }
 
-    // Fallback: heuristic scoring (offline, no API key needed)
     const score = heuristicScore(text);
     const result = buildResult(hash, score, "heuristic");
     await cacheSet(hash, result);
-    if (score >= settings.threshold.uncertain) await incrementStat("flaggedCount");
+    void bumpStats({
+      totalScanned: 1,
+      flaggedCount: score >= settings.threshold.uncertain ? 1 : 0,
+    });
     return { type: "BLOCK_RESULT", result };
   }
 

@@ -53,7 +53,9 @@ export const ADAPTERS: Record<string, APIAdapter> = {
 // Signals: sentence length variance (burstiness), type-token ratio, avg word length
 export function heuristicScore(text: string): number {
   const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
-  if (sentences.length < 2) return 0.5; // indeterminate
+  // Single-sentence/short-fragment input — too little signal to flag.
+  // Bias low so we don't mark every quote/caption as "uncertain".
+  if (sentences.length < 2) return 0.3;
 
   const lengths = sentences.map((s) => s.trim().split(/\s+/).length);
   const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;

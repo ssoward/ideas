@@ -1,5 +1,5 @@
 import type { BlockResult } from "../shared/types";
-import { STORAGE_KEYS, CACHE_TTL_MS } from "../shared/constants";
+import { STORAGE_KEYS, CACHE_TTL_MS, CACHE_MAX_ENTRIES } from "../shared/constants";
 
 export async function cacheGet(hash: string): Promise<BlockResult | null> {
   const key = STORAGE_KEYS.CACHE_PREFIX + hash;
@@ -16,6 +16,8 @@ export async function cacheGet(hash: string): Promise<BlockResult | null> {
 export async function cacheSet(hash: string, result: BlockResult): Promise<void> {
   const key = STORAGE_KEYS.CACHE_PREFIX + hash;
   await chrome.storage.local.set({ [key]: result });
+  // Opportunistic LRU enforcement — only checks size every ~50 writes
+  if (Math.random() < 0.02) await enforceMaxSize();
 }
 
 export async function cacheClearExpired(): Promise<void> {
@@ -29,4 +31,20 @@ export async function cacheClearExpired(): Promise<void> {
     }
   }
   if (expiredKeys.length > 0) await chrome.storage.local.remove(expiredKeys);
+  await enforceMaxSize();
+}
+
+async function enforceMaxSize(): Promise<void> {
+  const all = await chrome.storage.local.get(null);
+  const entries: Array<[string, BlockResult]> = [];
+  for (const [key, value] of Object.entries(all)) {
+    if (key.startsWith(STORAGE_KEYS.CACHE_PREFIX)) {
+      entries.push([key, value as BlockResult]);
+    }
+  }
+  if (entries.length <= CACHE_MAX_ENTRIES) return;
+  // Evict oldest first
+  entries.sort((a, b) => a[1].analyzedAt - b[1].analyzedAt);
+  const toRemove = entries.slice(0, entries.length - CACHE_MAX_ENTRIES).map(([k]) => k);
+  if (toRemove.length > 0) await chrome.storage.local.remove(toRemove);
 }

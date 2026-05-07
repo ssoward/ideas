@@ -13,13 +13,13 @@ async function init(): Promise<void> {
   const settings = (settingsResp as { type: string; payload: Settings }).payload;
   const stats = (statsResp as { type: string; payload: Stats }).payload;
 
-  // Global enable toggle
+  // Global enable toggle — re-fetch latest settings to avoid clobbering changes
   const toggleEnabled = document.getElementById("toggle-enabled") as HTMLInputElement;
   toggleEnabled.checked = settings.enabled;
   toggleEnabled.addEventListener("change", async () => {
     const resp = await send({ type: "GET_SETTINGS" }) as { payload: Settings };
-    const s: Settings = { ...resp.payload, enabled: toggleEnabled.checked };
-    await chrome.storage.local.set({ settings: s });
+    const next: Settings = { ...resp.payload, enabled: toggleEnabled.checked };
+    await chrome.storage.local.set({ settings: next });
   });
 
   // Stats

@@ -57,7 +57,7 @@ async function init(): Promise<void> {
   updateApiVisibility();
   providerEl.addEventListener("change", updateApiVisibility);
 
-  // Sliders
+  // Sliders — keep uncertain strictly less than ai in both directions
   aiThreshEl.addEventListener("input", () => {
     aiThreshVal.textContent = `${aiThreshEl.value}%`;
     if (Number(uncThreshEl.value) >= Number(aiThreshEl.value)) {
@@ -66,6 +66,9 @@ async function init(): Promise<void> {
     }
   });
   uncThreshEl.addEventListener("input", () => {
+    if (Number(uncThreshEl.value) >= Number(aiThreshEl.value)) {
+      uncThreshEl.value = String(Number(aiThreshEl.value) - 1);
+    }
     uncThreshVal.textContent = `${uncThreshEl.value}%`;
   });
 
@@ -87,14 +90,23 @@ async function init(): Promise<void> {
 
   // Save
   saveBtn.addEventListener("click", async () => {
-    const denyOverrides: Record<string, boolean> = {};
-    denyListEl.value.split("\n").map((s) => s.trim()).filter(Boolean)
-      .forEach((h) => { denyOverrides[h] = false; });
+    // Re-read storage so we don't clobber per-site enables flipped from the popup
+    // between this page loading and Save being clicked.
+    const current = await loadSettings();
+
+    const deniedHosts = denyListEl.value.split("\n").map((s) => s.trim()).filter(Boolean);
+    const merged: Record<string, boolean> = {};
+    // Preserve any explicit "enabled: true" overrides — the deny list only owns
+    // the false entries.
+    for (const [host, enabled] of Object.entries(current.siteOverrides)) {
+      if (enabled === true) merged[host] = true;
+    }
+    for (const host of deniedHosts) merged[host] = false;
 
     const newSettings: Settings = {
-      ...settings,
+      ...current,
       apiProvider: providerEl.value as Settings["apiProvider"],
-      apiKey: apiKeyEl.value || settings.apiKey,
+      apiKey: apiKeyEl.value || current.apiKey,
       privacyAcknowledged: privacyAckEl.checked,
       threshold: {
         ai: Number(aiThreshEl.value) / 100,
@@ -105,7 +117,7 @@ async function init(): Promise<void> {
         uncertain: colorUncEl.value,
       },
       minTextLength: Number(minLenEl.value),
-      siteOverrides: denyOverrides,
+      siteOverrides: merged,
     };
 
     await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: newSettings });

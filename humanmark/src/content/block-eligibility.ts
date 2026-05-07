@@ -21,7 +21,7 @@ const TEXT_BLOCK_SELECTORS = [
   ".article-body p",
   ".story-body p",
   "main p",
-  // Fallback — standalone paragraphs and blockquotes not inside nav
+  // Fallback — standalone paragraphs and blockquotes not inside nav/header/footer
   "p:not(nav p):not(header p):not(footer p)",
   "blockquote",
 ].join(", ");
@@ -31,29 +31,27 @@ export function getTextBlocks(root: Element | Document = document): Element[] {
 }
 
 export function isEligible(el: Element, settings: Settings): boolean {
-  if (el.getAttribute("aria-hidden") === "true") return false;
   if (SKIP_TAGS.has(el.tagName)) return false;
 
-  // Skip elements with no layout box (display:none, visibility:hidden)
+  // aria-hidden on element OR any ancestor — skip the whole subtree
+  if (el.closest('[aria-hidden="true"]')) return false;
+
+  // Skip our own injected DOM
+  if ((el as HTMLElement).hasAttribute("data-hm-target-id")) return false;
+  if (el.id === "hm-toggle" || el.id === "hm-outlines") return false;
+
   const style = window.getComputedStyle(el);
   if (style.display === "none" || style.visibility === "hidden") return false;
 
-  // Skip if already analyzed
   if ((el as HTMLElement).dataset.hmState === "done") return false;
 
-  // Skip purely decorative / icon spans
+  // For SPAN elements, prefer the outermost match — if a tracked ancestor
+  // (article body, post description) is also being scanned, skip the inner span.
   if (el.tagName === "SPAN") {
-    const childText = (el.textContent ?? "").trim();
-    // Must have meaningful text length before we treat a span as a content block
-    if (childText.length < settings.minTextLength) return false;
-    // Skip spans that are themselves inside an already-targeted parent
-    const parent = el.closest(
+    const wrappingPost = el.parentElement?.closest(
       ".feed-shared-update-v2__description, .update-components-text, article"
     );
-    // Only allow the outermost matching span, not nested ones
-    if (parent && parent !== el && parent.querySelector("span.break-words") !== el) {
-      return false;
-    }
+    if (wrappingPost && wrappingPost !== el) return false;
   }
 
   const text = (el.textContent ?? "").trim();
@@ -63,7 +61,7 @@ export function isEligible(el: Element, settings: Settings): boolean {
   // Relaxed sentence check — LinkedIn posts often skip terminal punctuation
   const sentenceCount =
     (text.match(/[.!?]+[\s\n]+[A-Z]/g) ?? []).length +
-    (text.match(/\n{2,}/g) ?? []).length + // paragraph breaks count
+    (text.match(/\n{2,}/g) ?? []).length +
     1;
   if (sentenceCount < 2) return false;
 

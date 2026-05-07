@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   SETTINGS: "settings",
   STATS: "stats",
   CACHE_PREFIX: "cache:v1:",
+  RATE_LIMITER: "ratelimiter:v1",
 } as const;
 
 export const CSS = {
@@ -28,6 +29,6 @@ export const CSS = {
 } as const;
 
 export const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+export const CACHE_MAX_ENTRIES = 5000;           // LRU cap to stay well under storage quota
 export const BATCH_SIZE = 5;
 export const DEBOUNCE_MS = 300;
-export const MIN_SENTENCE_COUNT = 2;
