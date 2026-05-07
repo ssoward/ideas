@@ -26,8 +26,60 @@ const TEXT_BLOCK_SELECTORS = [
   "blockquote",
 ].join(", ");
 
+// Block-level tags considered valid text containers by the generic walker.
+// SPAN is included because Google/Twitter/many SPAs wrap snippet text in spans.
+const TEXT_BLOCK_TAGS = new Set(["DIV", "P", "SPAN", "ARTICLE", "SECTION", "BLOCKQUOTE", "LI", "TD", "DD"]);
+const GENERIC_MIN_TEXT = 100; // longer threshold for the generic walker — avoid noise
+
 export function getTextBlocks(root: Element | Document = document): Element[] {
-  return Array.from(root.querySelectorAll<Element>(TEXT_BLOCK_SELECTORS));
+  const seen = new Set<Element>();
+  const out: Element[] = [];
+  for (const el of root.querySelectorAll<Element>(TEXT_BLOCK_SELECTORS)) {
+    if (!seen.has(el)) { seen.add(el); out.push(el); }
+  }
+  // Generic fallback: walk text nodes, climb to the smallest block-level
+  // container with substantial aggregated text. Catches Google Search
+  // snippets, modern SPAs, and anywhere not using <p> for body copy.
+  const walkRoot: Node = root instanceof Document ? (root.body ?? root.documentElement) : root;
+  if (walkRoot) collectGenericBlocks(walkRoot, seen, out);
+  return out;
+}
+
+function collectGenericBlocks(root: Node, seen: Set<Element>, out: Element[]): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const t = node.textContent;
+      if (!t || t.trim().length < 30) return NodeFilter.FILTER_REJECT;
+      const parent = node.parentElement;
+      if (!parent || SKIP_TAGS.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+
+  let n: Node | null;
+  while ((n = walker.nextNode())) {
+    let el: Element | null = n.parentElement;
+    let found: Element | null = null;
+    // Climb until we hit a block-level container with enough aggregated text
+    while (el && el.parentElement) {
+      if (TEXT_BLOCK_TAGS.has(el.tagName)) {
+        const len = (el.textContent ?? "").trim().length;
+        if (len >= GENERIC_MIN_TEXT) { found = el; break; }
+      }
+      el = el.parentElement;
+    }
+    if (!found || seen.has(found)) continue;
+    // Skip if an ancestor was already collected — keep the leaf-most container.
+    let ancestor = found.parentElement;
+    let dominated = false;
+    while (ancestor) {
+      if (seen.has(ancestor)) { dominated = true; break; }
+      ancestor = ancestor.parentElement;
+    }
+    if (dominated) continue;
+    seen.add(found);
+    out.push(found);
+  }
 }
 
 export function isEligible(el: Element, settings: Settings): boolean {
@@ -58,12 +110,14 @@ export function isEligible(el: Element, settings: Settings): boolean {
   if (text.length < settings.minTextLength) return false;
   if (text.length > 20_000) return false;
 
-  // Relaxed sentence check — LinkedIn posts often skip terminal punctuation
+  // Allow either: 2+ sentences, OR a single long sentence (>= 100 chars).
+  // AI text is sometimes a single run-on sentence; rejecting all single
+  // sentences misses Google search snippets and many summary blocks.
   const sentenceCount =
     (text.match(/[.!?]+[\s\n]+[A-Z]/g) ?? []).length +
     (text.match(/\n{2,}/g) ?? []).length +
     1;
-  if (sentenceCount < 2) return false;
+  if (sentenceCount < 2 && text.length < 100) return false;
 
   return true;
 }
