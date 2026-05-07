@@ -119,7 +119,7 @@ function createBadge(
   badge.dataset.hmTargetId = nodeId;
   badge.dataset.hmLevel    = level;
   badge.style.cssText = [
-    "position:fixed",
+    "position:absolute",
     `background:${color}`,
     `color:${textColor}`,
     `box-shadow:0 0 10px ${color}99,0 2px 6px rgba(0,0,0,0.35)`,
@@ -142,7 +142,7 @@ function createBadge(
 
   // Force the critical positioning props with !important so host-page CSS
   // resets (e.g. body > div { display: block !important }) cannot break us.
-  badge.style.setProperty("position", "fixed", "important");
+  badge.style.setProperty("position", "absolute", "important");
   badge.style.setProperty("z-index", "2147483647", "important");
   badge.style.setProperty("display", flagsHidden ? "none" : "inline-flex", "important");
   badge.style.setProperty("visibility", "visible", "important");
@@ -176,9 +176,12 @@ function removeBadge(nodeId: string): void {
 
 function positionBadge(badge: HTMLElement, target: HTMLElement): void {
   const rect = target.getBoundingClientRect();
-  // Float 26px above the top-left corner of the target element
-  badge.style.top  = `${Math.max(4, rect.top - 26)}px`;
-  badge.style.left = `${rect.left}px`;
+  // Use page coordinates (absolute) so the badge scrolls with the comment.
+  // No clamping — offscreen targets get offscreen badges, which is correct.
+  const top  = rect.top  + window.scrollY - 26;
+  const left = rect.left + window.scrollX;
+  badge.style.top  = `${top}px`;
+  badge.style.left = `${left}px`;
 }
 
 function scheduleReposition(): void {
