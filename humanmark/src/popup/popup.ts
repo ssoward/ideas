@@ -13,13 +13,15 @@ async function init(): Promise<void> {
   const settings = (settingsResp as { type: string; payload: Settings }).payload;
   const stats = (statsResp as { type: string; payload: Stats }).payload;
 
-  // Global enable toggle — re-fetch latest settings to avoid clobbering changes
+  // Global enable toggle — read storage directly (popup runs in extension
+  // context) so we don't accidentally clobber the apiKey, which is redacted
+  // when settings flow through the runtime message channel.
   const toggleEnabled = document.getElementById("toggle-enabled") as HTMLInputElement;
   toggleEnabled.checked = settings.enabled;
   toggleEnabled.addEventListener("change", async () => {
-    const resp = await send({ type: "GET_SETTINGS" }) as { payload: Settings };
-    const next: Settings = { ...resp.payload, enabled: toggleEnabled.checked };
-    await chrome.storage.local.set({ settings: next });
+    const stored = await chrome.storage.local.get("settings");
+    const real = (stored.settings ?? {}) as Settings;
+    await chrome.storage.local.set({ settings: { ...real, enabled: toggleEnabled.checked } });
   });
 
   // Stats

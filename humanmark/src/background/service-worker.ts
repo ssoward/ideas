@@ -56,9 +56,15 @@ chrome.runtime.onMessage.addListener(
   }
 );
 
+// Strip the API key before sending settings over the runtime message channel.
+// Callers that legitimately need it (options page) read storage directly.
+function redact(s: Settings): Settings {
+  return { ...s, apiKey: s.apiKey ? "•••" : "" };
+}
+
 async function handleMessage(msg: MessageRequest): Promise<MessageResponse> {
   if (msg.type === "GET_SETTINGS") {
-    return { type: "SETTINGS", payload: await getSettings() };
+    return { type: "SETTINGS", payload: redact(await getSettings()) };
   }
 
   if (msg.type === "GET_STATS") {
@@ -69,7 +75,7 @@ async function handleMessage(msg: MessageRequest): Promise<MessageResponse> {
     const settings = await getSettings();
     settings.siteOverrides[msg.hostname] = msg.enabled;
     await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: settings });
-    return { type: "SETTINGS", payload: settings };
+    return { type: "SETTINGS", payload: redact(settings) };
   }
 
   if (msg.type === "ANALYZE_BLOCK") {

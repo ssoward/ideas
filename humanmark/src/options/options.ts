@@ -94,7 +94,14 @@ async function init(): Promise<void> {
     // between this page loading and Save being clicked.
     const current = await loadSettings();
 
-    const deniedHosts = denyListEl.value.split("\n").map((s) => s.trim()).filter(Boolean);
+    // Accept only plausible hostnames — letters, digits, hyphens, dots.
+    // Rejects empty lines, prototype-pollution edge cases like "__proto__",
+    // and anything with whitespace or other unusual characters.
+    const HOSTNAME_RE = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
+    const deniedHosts = denyListEl.value
+      .split("\n")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => HOSTNAME_RE.test(s));
     const merged: Record<string, boolean> = {};
     // Preserve any explicit "enabled: true" overrides — the deny list only owns
     // the false entries.

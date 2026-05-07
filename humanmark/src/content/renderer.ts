@@ -238,25 +238,39 @@ function openPopover(badge: HTMLElement): void {
   pop.style.setProperty("visibility", "visible", "important");
 
   const heading = level === "ai" ? "Likely AI-generated" : "Possibly AI-generated";
-  pop.innerHTML = `
-    <div style="font-weight:700;margin-bottom:6px;">${heading}</div>
-    <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:11px;">
-      <span style="color:#7F8C8D;">Confidence</span><span>${pct}%</span>
-      <span style="color:#7F8C8D;">Source</span><span>${sourceLabel}</span>
-      <span style="color:#7F8C8D;">Analyzed</span><span>${new Date(time).toLocaleTimeString()}</span>
-    </div>
-    <button id="hm-pop-dismiss" style="
-      margin-top:10px;width:100%;
-      background:#2C3E50;color:#ECF0F1;border:none;border-radius:6px;
-      padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;
-    ">Dismiss this flag</button>
-  `;
 
-  pop.addEventListener("click", (e) => e.stopPropagation());
-  pop.querySelector<HTMLButtonElement>("#hm-pop-dismiss")?.addEventListener("click", () => {
+  // Safe DOM construction (no innerHTML) — avoids any risk of HTML injection
+  // even if a future code change makes one of these fields user-controlled.
+  const headingEl = document.createElement("div");
+  headingEl.textContent = heading;
+  headingEl.style.cssText = "font-weight:700;margin-bottom:6px;";
+
+  const grid = document.createElement("div");
+  grid.style.cssText = "display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:11px;";
+  const addRow = (k: string, v: string) => {
+    const key = document.createElement("span");
+    key.textContent = k;
+    key.style.color = "#7F8C8D";
+    const val = document.createElement("span");
+    val.textContent = v;
+    grid.append(key, val);
+  };
+  addRow("Confidence", `${pct}%`);
+  addRow("Source", sourceLabel);
+  addRow("Analyzed", new Date(time).toLocaleTimeString());
+
+  const dismissBtn = document.createElement("button");
+  dismissBtn.textContent = "Dismiss this flag";
+  dismissBtn.style.cssText =
+    "margin-top:10px;width:100%;background:#2C3E50;color:#ECF0F1;border:none;" +
+    "border-radius:6px;padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;";
+  dismissBtn.addEventListener("click", () => {
     dismissFlag(nodeId);
     closePopover();
   });
+
+  pop.append(headingEl, grid, dismissBtn);
+  pop.addEventListener("click", (e) => e.stopPropagation());
 
   // Park off-screen first so layout-measure doesn't flash at (0,0)
   pop.style.top  = "-9999px";

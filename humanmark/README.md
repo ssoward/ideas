@@ -76,6 +76,34 @@ The score is clamped to `[0, 1]` and compared against the configured thresholds.
 - API mode is opt-in: provider + key + an explicit consent checkbox are all required before any text leaves the browser.
 - The cache stores only the score, hash, source, and timestamp — never the original text.
 - The API key is stored in `chrome.storage.local` (the extension's sandboxed storage).
+- No telemetry. No analytics. Outbound fetches only to the AI-detection provider you configure (`api.gptzero.me` or `api.sapling.ai`).
+
+## Security model
+
+Threats considered, with mitigations:
+
+| Surface | Mitigation |
+|---|---|
+| **Host-page script reading API key** | Content scripts run in an isolated world; `apiKey` is redacted (`•••`) when settings flow through the runtime message channel; only the service worker holds the real key in memory at request time. |
+| **Host-page CSS hiding our overlay** | Critical positioning props (`position`, `z-index`, `display`, `visibility`, `pointer-events`) set with `!important` via `setProperty`; outline applied via dedicated `<style>` rule with `!important`. |
+| **HTML injection into popover** | Popover built via `document.createElement` + `textContent` only — no `innerHTML`, `outerHTML`, `insertAdjacentHTML`, or template interpolation into HTML strings. |
+| **Selector / regex injection via `nodeId`** | `nodeId` is generated as `hm-${Math.random().toString(36).slice(2,10)}` — alphanumeric only. |
+| **Prototype pollution via deny list** | Hostnames are validated against a strict DNS-name regex before being used as object keys. |
+| **Quota exhaustion / cost burn** | Token-bucket rate limiter persisted across SW restarts; min-text-length gate before API call; API failures fall back to heuristic instead of retrying. |
+| **Cache poisoning** | Cache key is a 64-bit composite hash plus length tag — collision probability vanishingly small at the configured cap. Cache is per-extension; no cross-origin write path. |
+| **Storage exhaustion** | LRU eviction at `CACHE_MAX_ENTRIES = 5000` plus 24 h TTL. |
+| **Stats race** | `chrome.storage.local` read-modify-write serialised through a single promise chain. |
+| **Concurrent settings overwrite** | Options page re-reads storage on Save and merges with in-flight popup changes (per-site enables preserved). |
+| **Page-CSP exfiltration via inline scripts** | We never inject `<script>` into the host page; all logic stays in the content script's isolated world. Extension page CSP: `script-src 'self' 'wasm-unsafe-eval'; object-src 'self'`. |
+
+What we **do** trust:
+- The two API endpoints (`api.gptzero.me`, `api.sapling.ai`) are hardcoded in source.
+- `chrome.storage.*` integrity (sandboxed per extension).
+- The user's own deny list and threshold settings.
+
+What we **do not** trust:
+- Anything in the host page DOM. Selectors are scoped, mutations from our own injected nodes are filtered out, all content goes through `textContent` extraction.
+- Service-worker message payloads — they're validated against a discriminated union before dispatch; unknown types return `ERROR`.
 
 ## Permissions
 
@@ -86,14 +114,35 @@ The score is clamped to `[0, 1]` and compared against the configured thresholds.
 | `tabs` | Read the active tab's hostname for the per-site toggle |
 | `<all_urls>` | Content script needs to scan whatever page you're on |
 
-## Build & package for the Chrome Web Store
+## Release process
 
-```bash
-./scripts/package.sh           # builds + zips dist/ → humanmark-vX.Y.Z.zip
-./scripts/package.sh 0.2.0     # override version
-```
-
-Then upload the zip in the [Chrome Web Store dashboard](https://chrome.google.com/webstore/devconsole).
+1. **Bump the version** in both `manifest.json` and `package.json` (kept in sync).
+2. **Build the production package**:
+   ```bash
+   ./scripts/package.sh           # builds + zips dist/ → humanmark-vX.Y.Z.zip
+   ./scripts/package.sh 0.2.0     # override version
+   ```
+3. **Smoke-test the unpacked dist** via `chrome://extensions` → Load unpacked → `dist/`. Verify on at least one feed-style site (LinkedIn) and one article (any blog).
+4. **Submit to the Chrome Web Store**:
+   - Open the [Developer Dashboard](https://chrome.google.com/webstore/devconsole). One-time $5 developer fee for new accounts.
+   - Click **New item** → upload `humanmark-vX.Y.Z.zip`.
+   - Fill the store listing: short description, detailed description, screenshots (≥ 1 at 1280×800 or 640×400), promotional tile, primary category (Productivity), language.
+   - **Privacy practices** tab — declare:
+     - Personally identifiable information: none collected.
+     - Health, financial, location, web history, user activity: none collected/transmitted *unless* the user enables an AI-detection API, in which case the analyzed text is sent to the chosen provider.
+     - "Single purpose" statement: "Flag AI-generated text on webpages and show a confidence badge."
+     - Permission justifications:
+       - `storage` — settings, cache, stats
+       - `alarms` — periodic cache cleanup
+       - `tabs` — show current site hostname in popup for per-site toggle
+       - `host_permissions: <all_urls>` — content script must scan whichever page the user is on; user can deny-list specific sites
+     - Remote code: none.
+   - **Distribution**: choose visibility (Public, Unlisted, or Private). For first review, Unlisted is a good way to validate review without prematurely going public.
+   - Click **Submit for review**. First review typically completes in 1–7 business days.
+5. After approval, tag the release in git:
+   ```bash
+   git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z
+   ```
 
 ## Scripts
 
