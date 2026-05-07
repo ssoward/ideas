@@ -390,16 +390,17 @@ function injectTogglePill(settings: Settings): void {
   label.textContent = "HM";
   label.title = "Click to show/hide flags";
 
-  // Nav controls — hidden until instances found
+  // Nav controls — always visible so the user can see the find count at a glance
   const nav = document.createElement("span");
   nav.id = "hm-nav";
-  nav.style.cssText = "display:none;align-items:center;gap:3px;";
+  nav.style.cssText = "display:flex;align-items:center;gap:3px;";
 
-  const btnPrev = navBtn("◀", "Previous");
+  const btnPrev = navBtn("◀", "Previous flag");
   const counter = document.createElement("span");
   counter.id = "hm-counter";
-  counter.style.cssText = "font-size:10px;opacity:0.75;min-width:28px;text-align:center;";
-  const btnNext = navBtn("▶", "Next");
+  counter.style.cssText = "font-size:10px;opacity:0.85;min-width:32px;text-align:center;font-variant-numeric:tabular-nums;";
+  counter.textContent = "0";
+  const btnNext = navBtn("▶", "Next flag");
 
   btnPrev.addEventListener("click", (e) => { e.stopPropagation(); navigateTo(currentNavIndex - 1); });
   btnNext.addEventListener("click", (e) => { e.stopPropagation(); navigateTo(currentNavIndex + 1); });
@@ -427,6 +428,7 @@ function injectTogglePill(settings: Settings): void {
 
   document.documentElement.appendChild(pill);
   togglePill = pill;
+  updateNavUI();
 }
 
 function navBtn(text: string, title: string): HTMLButtonElement {
@@ -468,9 +470,23 @@ function updateNavUI(): void {
   const counter = document.getElementById("hm-counter");
   const nav     = document.getElementById("hm-nav");
   if (!counter || !nav) return;
-  if (flaggedNodes.length === 0) { nav.style.display = "none"; return; }
-  nav.style.display     = "flex";
-  counter.textContent   = `${currentNavIndex + 1}/${flaggedNodes.length}`;
+  nav.style.display = "flex";
+  if (flaggedNodes.length === 0) {
+    counter.textContent = "0";
+    setNavButtons(nav, false);
+  } else {
+    counter.textContent = `${currentNavIndex + 1}/${flaggedNodes.length}`;
+    setNavButtons(nav, true);
+  }
+}
+
+function setNavButtons(nav: HTMLElement, enabled: boolean): void {
+  nav.querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
+    b.disabled = !enabled;
+    b.style.opacity       = enabled ? "1"       : "0.35";
+    b.style.cursor        = enabled ? "pointer" : "default";
+    b.style.pointerEvents = enabled ? "auto"    : "none";
+  });
 }
 
 function makeDraggable(el: HTMLElement): void {
