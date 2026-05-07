@@ -4,8 +4,12 @@ export interface Settings {
   apiKey: string;
   privacyAcknowledged: boolean;
   threshold: {
-    ai: number;       // score >= this → red flag (default 0.75)
-    uncertain: number; // score >= this → amber (default 0.50)
+    ai: number;
+    uncertain: number;
+  };
+  colors: {
+    ai: string;        // default #ff2d6b
+    uncertain: string; // default #f9ff21
   };
   minTextLength: number;
   siteOverrides: Record<string, boolean>;
@@ -48,6 +52,4 @@ export interface Stats {
 }
 
 export type AnalysisState = "pending" | "analyzing" | "done" | "skipped" | "error";
-
-// Re-export narrower type used in renderer calls
 export type RendererState = "analyzing" | "done" | "skipped" | "error";

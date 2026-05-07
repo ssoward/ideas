@@ -6,7 +6,8 @@ export const DEFAULT_SETTINGS: Settings = {
   apiKey: "",
   privacyAcknowledged: false,
   threshold: { ai: 0.75, uncertain: 0.50 },
-  minTextLength: 100,
+  colors: { ai: "#ff2d6b", uncertain: "#f9ff21" },
+  minTextLength: 60,
   siteOverrides: {},
   showOnlyFlagged: false,
 };

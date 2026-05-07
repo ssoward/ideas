@@ -42,16 +42,43 @@
     <section>
       <h2>Detection Thresholds</h2>
       <div class="form-row slider-row">
-        <label>AI (red) threshold: <span id="ai-threshold-val">75%</span></label>
+        <label>AI threshold: <span id="ai-threshold-val">75%</span></label>
         <input type="range" id="ai-threshold" min="50" max="99" value="75" />
       </div>
       <div class="form-row slider-row">
-        <label>Uncertain (amber) threshold: <span id="uncertain-threshold-val">50%</span></label>
+        <label>Uncertain threshold: <span id="uncertain-threshold-val">50%</span></label>
         <input type="range" id="uncertain-threshold" min="20" max="74" value="50" />
       </div>
       <div class="form-row">
         <label>Minimum text length (chars)</label>
-        <input type="number" id="min-length" min="50" max="500" value="100" />
+        <input type="number" id="min-length" min="30" max="500" value="60" />
+      </div>
+    </section>
+
+    <section>
+      <h2>Flag Colors</h2>
+      <div class="color-row">
+        <div class="color-item">
+          <label for="color-ai">AI detected</label>
+          <div class="color-preview-wrap">
+            <input type="color" id="color-ai" value="#ff2d6b" />
+            <span class="color-swatch" id="swatch-ai" style="background:#ff2d6b;"></span>
+          </div>
+        </div>
+        <div class="color-item">
+          <label for="color-uncertain">Uncertain</label>
+          <div class="color-preview-wrap">
+            <input type="color" id="color-uncertain" value="#f9ff21" />
+            <span class="color-swatch" id="swatch-uncertain" style="background:#f9ff21;"></span>
+          </div>
+        </div>
+      </div>
+      <div class="color-presets">
+        <span class="preset-label">Presets:</span>
+        <button class="preset" data-ai="#ff2d6b" data-unc="#f9ff21">Neon</button>
+        <button class="preset" data-ai="#e74c3c" data-unc="#e67e22">Classic</button>
+        <button class="preset" data-ai="#9b59b6" data-unc="#3498db">Purple/Blue</button>
+        <button class="preset" data-ai="#00ff88" data-unc="#ffaa00">Matrix</button>
       </div>
     </section>
 

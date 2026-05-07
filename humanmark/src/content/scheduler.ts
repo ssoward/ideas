@@ -25,7 +25,6 @@ const io = new IntersectionObserver((entries) => {
 export function enqueue(el: HTMLElement): void {
   if (el.dataset.hmState === "done" || el.dataset.hmState === "analyzing") return;
 
-  // Assign stable node ID
   if (!el.dataset.hmId) {
     el.dataset.hmId = `hm-${Math.random().toString(36).slice(2, 10)}`;
   }
@@ -35,7 +34,8 @@ export function enqueue(el: HTMLElement): void {
   io.observe(el);
   queue.set(nodeId, { el, priority: 0 });
 
-  if (!processing) scheduleFlush();
+  // Always schedule — flush() is idempotent and guards re-entry via processing flag
+  scheduleFlush();
 }
 
 function scheduleFlush(): void {
@@ -43,8 +43,10 @@ function scheduleFlush(): void {
 }
 
 async function flush(): Promise<void> {
+  if (queue.size === 0) return;
+  if (processing) return; // already draining; scheduleFlush will re-enter when done
+
   if (isPaused()) {
-    processing = false;
     setTimeout(flush, 1000);
     return;
   }
@@ -73,17 +75,22 @@ async function flush(): Promise<void> {
         const settings = entry.el.dataset.hmSettings
           ? (JSON.parse(entry.el.dataset.hmSettings) as Settings)
           : null;
-        if (settings) applyResult(nodeId, resp.result, settings);
+        if (settings) {
+          // Apply platform-specific score adjustment if available
+          const postProcess = (window as unknown as Record<string, unknown>).__hmPostProcess as
+            ((score: number, text: string) => number) | undefined;
+          if (postProcess) {
+            resp.result.score = Math.min(1, Math.max(0, postProcess(resp.result.score, text)));
+          }
+          applyResult(nodeId, resp.result, settings);
+        }
       } else {
         applyState(nodeId, "skipped");
       }
     });
   }
 
-  if (queue.size > 0) {
-    setTimeout(flush, 400);
-  } else {
-    processing = false;
-  }
+  processing = false;
+  if (queue.size > 0) setTimeout(flush, 400);
 }
 

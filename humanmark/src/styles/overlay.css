@@ -1,113 +1,20 @@
-/* HumanMark overlay styles — injected into host pages */
+/*
+ * overlay.css — HumanMark injected styles
+ *
+ * Kept intentionally minimal. Badge colors and outlines are set via
+ * inline styles and a dedicated <style id="hm-outlines"> tag in the
+ * renderer so they are never overridden by host-page CSS.
+ *
+ * This file only handles the analyzing pulse animation and the HM pill
+ * base state (colors are overridden inline by renderer.ts).
+ */
 
-/* Analyzing state: subtle left pulse */
+/* Scanning pulse on elements being analyzed */
 [data-hm-state="analyzing"] {
-  border-left: 3px solid #BDC3C7 !important;
-  padding-left: 6px !important;
   animation: hm-pulse 1.2s ease-in-out infinite;
-  transition: border-color 0.3s ease;
-}
-
-/* AI-flagged: red left border */
-.hm-ai {
-  border-left: 4px solid #E74C3C !important;
-  padding-left: 6px !important;
-  transition: border-color 0.3s ease;
-}
-
-/* Uncertain / possibly AI: amber left border */
-.hm-uncertain {
-  border-left: 4px solid #E67E22 !important;
-  padding-left: 6px !important;
-  transition: border-color 0.3s ease;
 }
 
 @keyframes hm-pulse {
-  0%, 100% { border-color: #BDC3C7; }
-  50% { border-color: #7F8C8D; }
-}
-
-/* Badge chip — appears in top-right corner of the block */
-.hm-badge {
-  position: absolute;
-  top: 2px;
-  right: 0;
-  font-size: 10px;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 99px;
-  cursor: default;
-  user-select: none;
-  z-index: 9999;
-  pointer-events: auto;
-  white-space: nowrap;
-  line-height: 1.5;
-}
-
-.hm-badge.hm-ai {
-  background: #E74C3C;
-  color: #fff;
-  border: none;
-}
-
-.hm-badge.hm-uncertain {
-  background: #E67E22;
-  color: #fff;
-  border: none;
-}
-
-/* Tooltip — shown on badge hover */
-.hm-tooltip {
-  display: none;
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  background: #1a1a2e;
-  color: #eee;
-  font-size: 11px;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-weight: 400;
-  line-height: 1.6;
-  padding: 8px 12px;
-  border-radius: 8px;
-  min-width: 180px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
-  z-index: 10000;
-  pointer-events: none;
-}
-
-.hm-badge:hover .hm-tooltip {
-  display: block;
-}
-
-/* Toggle pill — bottom-right corner of viewport */
-#hm-toggle {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: #2C3E50;
-  color: #ECF0F1;
-  font-size: 11px;
-  font-family: system-ui, -apple-system, sans-serif;
-  font-weight: 700;
-  padding: 6px 10px;
-  border-radius: 99px;
-  cursor: pointer;
-  user-select: none;
-  z-index: 2147483647;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-  letter-spacing: 0.5px;
-  transition: background 0.2s ease, opacity 0.3s ease;
-  opacity: 0.85;
-}
-
-#hm-toggle:hover {
-  background: #3D5166;
-  opacity: 1;
-}
-
-#hm-toggle.hm-paused {
-  background: #636e72;
-  opacity: 0.6;
+  0%, 100% { outline: 2px solid rgba(0,255,247,0.3) !important; outline-offset: 3px !important; }
+  50%       { outline: 2px solid rgba(0,255,247,0.85) !important; outline-offset: 3px !important; }
 }

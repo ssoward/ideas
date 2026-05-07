@@ -153,3 +153,78 @@ textarea {
   color: #27AE60;
   font-weight: 600;
 }
+
+/* Color picker section */
+.color-row {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 14px;
+}
+
+.color-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.color-item label {
+  font-size: 12px;
+  color: #7F8C8D;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.color-preview-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+input[type="color"] {
+  width: 40px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid #DDE1E7;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #FAFBFC;
+}
+
+.color-swatch {
+  display: inline-block;
+  width: 60px;
+  height: 24px;
+  border-radius: 99px;
+  border: 1px solid rgba(0,0,0,0.1);
+  transition: background 0.15s;
+}
+
+.color-presets {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preset-label {
+  font-size: 12px;
+  color: #7F8C8D;
+}
+
+.preset {
+  background: #F0F1F3;
+  border: 1px solid #DDE1E7;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.preset:hover { background: #E2E5EA; }
+
+.save-msg {
+  font-size: 12px;
+  color: #27AE60;
+  font-weight: 600;
+}

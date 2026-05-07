@@ -4,10 +4,17 @@ import { ADAPTERS, heuristicScore, buildResult } from "./api-client";
 import { cacheGet, cacheSet, cacheClearExpired } from "./cache";
 import { checkRateLimit } from "./rate-limiter";
 
-// Rehydrate settings from storage
+// Rehydrate settings — deep-merge nested objects so new fields always have defaults
 async function getSettings(): Promise<Settings> {
   const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
-  return { ...DEFAULT_SETTINGS, ...(result[STORAGE_KEYS.SETTINGS] as Partial<Settings> ?? {}) };
+  const saved = (result[STORAGE_KEYS.SETTINGS] as Partial<Settings>) ?? {};
+  return {
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    threshold: { ...DEFAULT_SETTINGS.threshold, ...(saved.threshold ?? {}) },
+    colors:    { ...DEFAULT_SETTINGS.colors,    ...(saved.colors    ?? {}) },
+    siteOverrides: saved.siteOverrides ?? {},
+  };
 }
 
 async function getStats(): Promise<Stats> {
@@ -22,6 +29,12 @@ async function incrementStat(field: keyof Omit<Stats, "lastReset">, value = 1): 
   stats[field] += value;
   await chrome.storage.local.set({ [STORAGE_KEYS.STATS]: stats });
 }
+
+// On install/update, re-save settings to pick up any new default fields
+chrome.runtime.onInstalled.addListener(async () => {
+  const fresh = await getSettings();
+  await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: fresh });
+});
 
 // Schedule periodic cache cleanup
 chrome.alarms.create("cache-cleanup", { periodInMinutes: 360 });
