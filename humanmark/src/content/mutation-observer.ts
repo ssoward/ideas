@@ -59,6 +59,28 @@ export function startObserving(settings: Settings): void {
   };
   window.addEventListener("scroll", onScroll, { passive: true });
   document.addEventListener("scroll", onScroll, { passive: true, capture: true });
+
+  // SPA navigation: Google Search pagination, LinkedIn feed switches, and
+  // other client-routed pages change history without reloading the document,
+  // so the content script never re-initializes. We can't intercept the
+  // page's history.pushState (different JS world), but we can poll
+  // location.href cheaply and watch popstate for back/forward.
+  watchUrlChanges();
+}
+
+function watchUrlChanges(): void {
+  let lastUrl = location.href;
+  const onUrlChange = () => {
+    if (location.href === lastUrl) return;
+    lastUrl = location.href;
+    if (!activeSettings) return;
+    // Re-scan twice: SPAs often render in two phases (skeleton then content).
+    setTimeout(() => { if (activeSettings) scanPage(); }, 400);
+    setTimeout(() => { if (activeSettings) scanPage(); }, 1200);
+  };
+  setInterval(onUrlChange, 500);
+  window.addEventListener("popstate", onUrlChange);
+  window.addEventListener("hashchange", onUrlChange);
 }
 
 export function updateActiveSettings(settings: Settings): void {
