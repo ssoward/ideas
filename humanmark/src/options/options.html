@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>HumanMark Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="logo">HM</span>
+      <h1>HumanMark Settings</h1>
+    </div>
+
+    <section>
+      <h2>Detection API</h2>
+      <div class="form-row">
+        <label for="api-provider">Provider</label>
+        <select id="api-provider">
+          <option value="none">Heuristic only (offline, no key needed)</option>
+          <option value="sapling">Sapling AI (~$0.002/1k chars)</option>
+          <option value="gptzero">GPTZero (10k words/month free)</option>
+        </select>
+      </div>
+
+      <div class="form-row" id="api-key-row">
+        <label for="api-key">API Key</label>
+        <input type="password" id="api-key" placeholder="Paste your API key here" autocomplete="off" />
+      </div>
+
+      <div class="privacy-warning" id="privacy-warning">
+        <strong>Privacy notice:</strong> When an API is enabled, text from web pages you browse
+        will be sent to the selected provider for analysis. No other personal data is transmitted.
+        <br /><br />
+        <label>
+          <input type="checkbox" id="privacy-ack" />
+          I understand and consent to text being sent for analysis.
+        </label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Detection Thresholds</h2>
+      <div class="form-row slider-row">
+        <label>AI (red) threshold: <span id="ai-threshold-val">75%</span></label>
+        <input type="range" id="ai-threshold" min="50" max="99" value="75" />
+      </div>
+      <div class="form-row slider-row">
+        <label>Uncertain (amber) threshold: <span id="uncertain-threshold-val">50%</span></label>
+        <input type="range" id="uncertain-threshold" min="20" max="74" value="50" />
+      </div>
+      <div class="form-row">
+        <label>Minimum text length (chars)</label>
+        <input type="number" id="min-length" min="50" max="500" value="100" />
+      </div>
+    </section>
+
+    <section>
+      <h2>Site Deny-List</h2>
+      <p class="hint">One hostname per line. HumanMark will not scan these sites.</p>
+      <textarea id="deny-list" rows="5" placeholder="example.com&#10;intranet.mycompany.com"></textarea>
+    </section>
+
+    <div class="actions">
+      <button id="save-btn" class="btn-primary">Save Settings</button>
+      <span id="save-msg" class="save-msg"></span>
+    </div>
+  </div>
+  <script src="./options.ts" type="module"></script>
+</body>
+</html>

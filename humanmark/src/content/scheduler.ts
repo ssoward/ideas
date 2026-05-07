@@ -1,0 +1,89 @@
+import type { Settings, MessageRequest, MessageResponse } from "../shared/types";
+import { hashText } from "../shared/text-hasher";
+import { BATCH_SIZE } from "../shared/constants";
+import { extractText } from "./block-eligibility";
+import { applyState, applyResult, isPaused } from "./renderer";
+
+interface QueueEntry {
+  el: HTMLElement;
+  priority: number; // 1 = visible, 0 = offscreen
+}
+
+const queue: Map<string, QueueEntry> = new Map();
+let processing = false;
+
+const io = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    const el = entry.target as HTMLElement;
+    const nodeId = el.dataset.hmId;
+    if (nodeId && queue.has(nodeId)) {
+      queue.get(nodeId)!.priority = entry.isIntersecting ? 1 : 0;
+    }
+  }
+}, { threshold: 0 });
+
+export function enqueue(el: HTMLElement): void {
+  if (el.dataset.hmState === "done" || el.dataset.hmState === "analyzing") return;
+
+  // Assign stable node ID
+  if (!el.dataset.hmId) {
+    el.dataset.hmId = `hm-${Math.random().toString(36).slice(2, 10)}`;
+  }
+  const nodeId = el.dataset.hmId;
+
+  el.dataset.hmState = "pending";
+  io.observe(el);
+  queue.set(nodeId, { el, priority: 0 });
+
+  if (!processing) scheduleFlush();
+}
+
+function scheduleFlush(): void {
+  setTimeout(flush, 300);
+}
+
+async function flush(): Promise<void> {
+  if (isPaused()) {
+    processing = false;
+    setTimeout(flush, 1000);
+    return;
+  }
+
+  processing = true;
+
+  // Sort: visible first
+  const sorted = [...queue.entries()].sort((a, b) => b[1].priority - a[1].priority);
+  const batch = sorted.slice(0, BATCH_SIZE);
+
+  for (const [nodeId, entry] of batch) {
+    queue.delete(nodeId);
+    io.unobserve(entry.el);
+
+    const text = extractText(entry.el);
+    const hash = hashText(text);
+    applyState(nodeId, "analyzing");
+
+    const msg: MessageRequest = {
+      type: "ANALYZE_BLOCK",
+      payload: { hash, text, nodeId },
+    };
+
+    chrome.runtime.sendMessage(msg, (resp: MessageResponse) => {
+      if (resp?.type === "BLOCK_RESULT") {
+        const settings = entry.el.dataset.hmSettings
+          ? (JSON.parse(entry.el.dataset.hmSettings) as Settings)
+          : null;
+        if (settings) applyResult(nodeId, resp.result, settings);
+      } else {
+        applyState(nodeId, "skipped");
+      }
+    });
+  }
+
+  if (queue.size > 0) {
+    setTimeout(flush, 400);
+  } else {
+    processing = false;
+  }
+}
+
