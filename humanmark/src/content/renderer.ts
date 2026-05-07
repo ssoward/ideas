@@ -104,6 +104,14 @@ function addOutlineRule(nodeId: string, color: string): void {
     `outline-offset:3px!important;}/*end*/`;
 }
 
+function removeOutlineRule(nodeId: string): void {
+  if (!outlineSheet) return;
+  const existing = outlineSheet.textContent ?? "";
+  outlineSheet.textContent = existing.replace(
+    new RegExp(`/\\*hm:${nodeId}\\*/[^/]*/\\*end\\*/`, "g"), ""
+  );
+}
+
 // ─── Badge chips ─────────────────────────────────────────────────────────────
 
 function createBadge(
@@ -153,12 +161,17 @@ function createBadge(
   badge.style.setProperty("pointer-events", "auto", "important");
 
   badge.textContent = label;
-  badge.title = `Source: ${result.provider ?? result.source} · ${new Date(result.analyzedAt).toLocaleTimeString()}`;
+  badge.title = "Click for details";
 
-  // Click → scroll to instance
-  badge.addEventListener("click", () => {
-    const idx = flaggedNodes.indexOf(nodeId);
-    if (idx !== -1) navigateTo(idx);
+  // Stash result fields on the badge so the popover can read them later
+  badge.dataset.hmScore     = String(result.score);
+  badge.dataset.hmSource    = result.source;
+  badge.dataset.hmProvider  = result.provider ?? "";
+  badge.dataset.hmTime      = String(result.analyzedAt);
+
+  badge.addEventListener("click", (e) => {
+    e.stopPropagation();
+    togglePopover(badge);
   });
 
   return badge;
@@ -175,6 +188,141 @@ function applyBadgeColor(badge: HTMLElement, color: string, level: "ai" | "uncer
 
 function removeBadge(nodeId: string): void {
   document.getElementById(`hm-badge-${nodeId}`)?.remove();
+}
+
+// ─── Detail popover ──────────────────────────────────────────────────────────
+
+let popover: HTMLElement | null = null;
+let popoverNodeId: string | null = null;
+
+function togglePopover(badge: HTMLElement): void {
+  const nodeId = badge.dataset.hmTargetId ?? "";
+  if (popoverNodeId === nodeId && popover) { closePopover(); return; }
+  closePopover();
+  openPopover(badge);
+}
+
+function openPopover(badge: HTMLElement): void {
+  const nodeId   = badge.dataset.hmTargetId ?? "";
+  const score    = Number(badge.dataset.hmScore  ?? "0");
+  const source   = badge.dataset.hmSource   ?? "heuristic";
+  const provider = badge.dataset.hmProvider ?? "";
+  const time     = Number(badge.dataset.hmTime ?? "0");
+  const level    = badge.dataset.hmLevel as "ai" | "uncertain";
+  const pct      = Math.round(score * 100);
+
+  const sourceLabel = provider
+    ? `${provider} (API)`
+    : source === "cache" ? "cached"
+    : source === "heuristic" ? "heuristic (offline)"
+    : source;
+
+  const pop = document.createElement("div");
+  pop.id = "hm-popover";
+  pop.style.cssText = [
+    "position:fixed",
+    "background:#0d0d1a",
+    "color:#ECF0F1",
+    "font-family:system-ui,-apple-system,sans-serif",
+    "font-size:12px",
+    "line-height:1.5",
+    "padding:12px 14px",
+    "border-radius:8px",
+    "box-shadow:0 8px 24px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.08)",
+    "min-width:200px",
+    "max-width:280px",
+  ].join(";");
+  pop.style.setProperty("position", "fixed", "important");
+  pop.style.setProperty("z-index", "2147483647", "important");
+  pop.style.setProperty("display", "block", "important");
+  pop.style.setProperty("visibility", "visible", "important");
+
+  const heading = level === "ai" ? "Likely AI-generated" : "Possibly AI-generated";
+  pop.innerHTML = `
+    <div style="font-weight:700;margin-bottom:6px;">${heading}</div>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:11px;">
+      <span style="color:#7F8C8D;">Confidence</span><span>${pct}%</span>
+      <span style="color:#7F8C8D;">Source</span><span>${sourceLabel}</span>
+      <span style="color:#7F8C8D;">Analyzed</span><span>${new Date(time).toLocaleTimeString()}</span>
+    </div>
+    <button id="hm-pop-dismiss" style="
+      margin-top:10px;width:100%;
+      background:#2C3E50;color:#ECF0F1;border:none;border-radius:6px;
+      padding:6px 10px;font-size:11px;font-weight:600;cursor:pointer;
+    ">Dismiss this flag</button>
+  `;
+
+  pop.addEventListener("click", (e) => e.stopPropagation());
+  pop.querySelector<HTMLButtonElement>("#hm-pop-dismiss")?.addEventListener("click", () => {
+    dismissFlag(nodeId);
+    closePopover();
+  });
+
+  // Park off-screen first so layout-measure doesn't flash at (0,0)
+  pop.style.top  = "-9999px";
+  pop.style.left = "-9999px";
+  document.documentElement.appendChild(pop);
+  popover = pop;
+  popoverNodeId = nodeId;
+
+  positionPopover(pop, badge);
+
+  // Defer so the click that opened us doesn't immediately close us
+  setTimeout(() => {
+    document.addEventListener("click", outsideClick, { capture: true });
+    document.addEventListener("keydown", escClose);
+    window.addEventListener("scroll", scrollClose, { passive: true, capture: true });
+    window.addEventListener("resize", scrollClose, { passive: true });
+  }, 0);
+}
+
+function positionPopover(pop: HTMLElement, anchor: HTMLElement): void {
+  const a = anchor.getBoundingClientRect();
+  // Show below the badge by default; flip above if it would clip the bottom
+  const pRect = pop.getBoundingClientRect();
+  const below = a.bottom + 6;
+  const wouldOverflow = below + pRect.height > window.innerHeight - 8;
+  const top  = wouldOverflow ? Math.max(8, a.top - pRect.height - 6) : below;
+  const left = Math.min(window.innerWidth - pRect.width - 8, Math.max(8, a.left));
+  pop.style.top  = `${top}px`;
+  pop.style.left = `${left}px`;
+}
+
+function outsideClick(e: Event): void {
+  const t = e.target as Element | null;
+  if (!t) return;
+  if (popover && popover.contains(t)) return;
+  // Let the badge's own handler manage toggle/swap to a different badge
+  if (t.closest && t.closest("[data-hm-target-id]")) return;
+  closePopover();
+}
+function escClose(e: KeyboardEvent): void {
+  if (e.key === "Escape") closePopover();
+}
+function scrollClose(): void { closePopover(); }
+
+function closePopover(): void {
+  popover?.remove();
+  popover = null;
+  popoverNodeId = null;
+  document.removeEventListener("click", outsideClick, { capture: true });
+  document.removeEventListener("keydown", escClose);
+  window.removeEventListener("scroll", scrollClose, { capture: true });
+  window.removeEventListener("resize", scrollClose);
+}
+
+function dismissFlag(nodeId: string): void {
+  removeBadge(nodeId);
+  removeOutlineRule(nodeId);
+  const target = document.querySelector<HTMLElement>(`[data-hm-id="${nodeId}"]`);
+  // Mark "done" so the scheduler won't re-enqueue this element this session
+  if (target) target.dataset.hmState = "done";
+  const idx = flaggedNodes.indexOf(nodeId);
+  if (idx !== -1) {
+    flaggedNodes.splice(idx, 1);
+    if (idx <= currentNavIndex) currentNavIndex = Math.max(-1, currentNavIndex - 1);
+  }
+  updateNavUI();
 }
 
 function positionBadge(badge: HTMLElement, target: HTMLElement): void {
