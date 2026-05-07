@@ -361,7 +361,7 @@ function injectTogglePill(settings: Settings): void {
   pill.id = CSS.TOGGLE_PILL;
   const ai = resolveColor(settings, "ai");
   pill.style.cssText = [
-    "position:fixed", "bottom:20px", "right:20px",
+    "position:fixed", "bottom:20px", "right:60px",
     "background:#0d0d1a", `color:${ai}`,
     "font-size:11px", "font-family:system-ui,sans-serif", "font-weight:800",
     "padding:7px 12px", "border-radius:99px", "cursor:grab", "user-select:none",

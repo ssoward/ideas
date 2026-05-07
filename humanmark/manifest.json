@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "HumanMark",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Flags AI-generated text on any webpage with confidence scores.",
   "icons": {
     "16": "assets/icons/icon-16.png",
