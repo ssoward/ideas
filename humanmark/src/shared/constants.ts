@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
 export const STORAGE_KEYS = {
   SETTINGS: "settings",
   STATS: "stats",
-  CACHE_PREFIX: "cache:v1:",
+  CACHE_PREFIX: "cache:v2:",
   RATE_LIMITER: "ratelimiter:v1",
 } as const;
 

@@ -54,7 +54,6 @@ export const ADAPTERS: Record<string, APIAdapter> = {
 export function heuristicScore(text: string): number {
   const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
   // Single-sentence/short-fragment input — too little signal to flag.
-  // Bias low so we don't mark every quote/caption as "uncertain".
   if (sentences.length < 2) return 0.3;
 
   const lengths = sentences.map((s) => s.trim().split(/\s+/).length);
@@ -75,7 +74,18 @@ export function heuristicScore(text: string): number {
   const hasRichPunctuation = /[—…();\[\]]/.test(text);
   const punctBonus = hasRichPunctuation ? -0.1 : 0.05;
 
-  return Math.min(1, Math.max(0, burstinessScore * 0.6 + ttrAdjusted * 0.4 + punctBonus));
+  let score = burstinessScore * 0.6 + ttrAdjusted * 0.4 + punctBonus;
+
+  // Confidence dampener for short text. With only 2 short sentences,
+  // burstiness/TTR signals are mathematically low/high regardless of source
+  // (form labels, error messages, captions all over-fire). Require 3+
+  // sentences AND 30+ words for a flag-worthy score; otherwise cap below
+  // the uncertain threshold so we don't paint UI copy red.
+  if (sentences.length < 3 || words.length < 30) {
+    score = Math.min(score, 0.45);
+  }
+
+  return Math.min(1, Math.max(0, score));
 }
 
 export function buildResult(

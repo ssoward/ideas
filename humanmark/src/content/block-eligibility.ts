@@ -106,6 +106,14 @@ export function isEligible(el: Element, settings: Settings): boolean {
     if (wrappingPost && wrappingPost !== el) return false;
   }
 
+  // Form UI is not prose. Skip anything inside a <form>/<fieldset> or any
+  // container that holds interactive controls — the AWS Budgets / settings-
+  // style "Field name + helper + input" group is the canonical false
+  // positive: terse, structurally similar across all such forms, never
+  // human creative text or AI text.
+  if (el.closest("form, fieldset")) return false;
+  if (el.querySelector("input, textarea, select, button, [role='textbox'], [role='combobox'], [role='button']")) return false;
+
   const text = (el.textContent ?? "").trim();
   if (text.length < settings.minTextLength) return false;
   if (text.length > 20_000) return false;
