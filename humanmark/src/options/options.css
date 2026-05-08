@@ -223,6 +223,36 @@ input[type="color"] {
 
 .preset:hover { background: #E2E5EA; }
 
+/* Inline info indicator — hover shows the title attribute */
+.info {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #7F8C8D;
+  background: #ECF0F1;
+  border-radius: 50%;
+  cursor: help;
+  margin-left: 4px;
+  vertical-align: middle;
+  transition: background 0.15s;
+}
+
+.info:hover {
+  background: #BDC3C7;
+  color: #2C3E50;
+}
+
+.hint a {
+  color: #3498DB;
+  text-decoration: none;
+}
+
+.hint a:hover { text-decoration: underline; }
+
 .save-msg {
   font-size: 12px;
   color: #27AE60;

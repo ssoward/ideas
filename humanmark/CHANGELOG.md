@@ -2,6 +2,11 @@
 
 All notable changes to HumanMark. Versions follow [SemVer](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 
+## [0.3.7] — 2026-05-08
+**Added**
+- Inline tooltips (ⓘ indicators) on every Settings field — hover for a one-sentence explanation of what each control does and when to adjust it.
+- Footer link on the Settings page to the User Guide and the GitHub issues page.
+
 ## [0.3.6] — 2026-05-08
 **Added**
 - `USER_GUIDE.md` — single-page walkthrough for end users (badges, popover, popup, settings tour, accuracy expectations, troubleshooting, FAQ).
