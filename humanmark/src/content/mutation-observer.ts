@@ -1,6 +1,7 @@
 import type { Settings } from "../shared/types";
 import { getTextBlocks, isEligible } from "./block-eligibility";
 import { enqueue, setActiveSettings } from "./scheduler";
+import { cleanupStale } from "./renderer";
 import { DEBOUNCE_MS } from "../shared/constants";
 
 let activeSettings: Settings | null = null;
@@ -74,9 +75,14 @@ function watchUrlChanges(): void {
     if (location.href === lastUrl) return;
     lastUrl = location.href;
     if (!activeSettings) return;
-    // Re-scan twice: SPAs often render in two phases (skeleton then content).
+    // Drop badges/outlines whose targets the SPA navigation just removed.
+    // Run a few times because the host page often replaces DOM in two phases
+    // (skeleton -> content), and we want to clean up after each.
+    cleanupStale();
+    setTimeout(cleanupStale, 200);
+    // Re-scan twice: SPAs often render in two phases.
     setTimeout(() => { if (activeSettings) scanPage(); }, 400);
-    setTimeout(() => { if (activeSettings) scanPage(); }, 1200);
+    setTimeout(() => { if (activeSettings) { scanPage(); cleanupStale(); } }, 1200);
   };
   setInterval(onUrlChange, 500);
   window.addEventListener("popstate", onUrlChange);

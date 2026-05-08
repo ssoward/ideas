@@ -46,6 +46,27 @@ export function updateRendererSettings(settings: Settings): void {
 
 export function isPaused(): boolean { return false; }
 
+// Removes any badge / outline rule / flagged-nodes entry whose target element
+// is no longer in the DOM. Called on SPA navigation, where the host page
+// swaps content without scrolling/resizing (so scheduleReposition wouldn't
+// otherwise fire).
+export function cleanupStale(): void {
+  document.querySelectorAll<HTMLElement>("[data-hm-target-id]").forEach((badge) => {
+    const id = badge.dataset.hmTargetId ?? "";
+    const target = document.querySelector(`[data-hm-id="${id}"]`);
+    if (!target) {
+      badge.remove();
+      removeOutlineRule(id);
+    }
+  });
+  pruneFlaggedNodes();
+  updateNavUI();
+  // Also close any open popover if its anchor is gone
+  if (popoverNodeId && !document.querySelector(`[data-hm-id="${popoverNodeId}"]`)) {
+    closePopover();
+  }
+}
+
 export function applyState(nodeId: string, state: RendererState): void {
   const el = document.querySelector<HTMLElement>(`[data-hm-id="${nodeId}"]`);
   if (el) el.dataset.hmState = state;
