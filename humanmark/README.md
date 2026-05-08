@@ -2,10 +2,15 @@
 
 A Chrome extension (Manifest V3) that flags AI-generated text on any webpage. It outlines suspicious blocks, drops a small floating badge with a confidence score, and lets you jump between flagged instances on the page.
 
-- **Heuristic mode** — works offline, no API key. ~80% accuracy.
+> **Just installed from the Chrome Web Store?**
+> Read the **[User Guide](USER_GUIDE.md)** — explains the badges, popover, settings, accuracy, and troubleshooting in plain English. The rest of this README is for developers.
+
+- **Heuristic mode** — works offline, no API key. ~80 % accuracy.
 - **API mode (optional)** — use [GPTZero](https://gptzero.me) (10k words/mo free) or [Sapling](https://sapling.ai) for higher accuracy. Text is only sent after explicit consent.
 - **Per-site control** — toggle scanning on/off for the current site from the popup, or maintain a global deny list in Settings.
 - **Privacy-first defaults** — heuristic mode never makes a network call.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for what changed in each release, [`PRIVACY.md`](PRIVACY.md) for the privacy policy.
 
 ## Install (developer mode)
 
