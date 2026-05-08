@@ -46,25 +46,24 @@ export function updateRendererSettings(settings: Settings): void {
 
 export function isPaused(): boolean { return false; }
 
-// Removes any badge / outline rule / flagged-nodes entry whose target element
-// is no longer in the DOM. Called on SPA navigation, where the host page
-// swaps content without scrolling/resizing (so scheduleReposition wouldn't
-// otherwise fire).
-export function cleanupStale(): void {
-  document.querySelectorAll<HTMLElement>("[data-hm-target-id]").forEach((badge) => {
-    const id = badge.dataset.hmTargetId ?? "";
-    const target = document.querySelector(`[data-hm-id="${id}"]`);
-    if (!target) {
-      badge.remove();
-      removeOutlineRule(id);
-    }
+// Wipe all visual state. Called on SPA navigation: the host page may have
+// kept the old DOM around (Ember/React-style framework caches), so checking
+// "is target still connected?" isn't enough — orphan badges hover over
+// invisible elements. Full reset is simpler and the upcoming re-scan
+// recreates badges via the cache (fast).
+export function wipeAll(): void {
+  document.querySelectorAll<HTMLElement>("[data-hm-target-id]").forEach((b) => b.remove());
+  if (outlineSheet) outlineSheet.textContent = "";
+  // Strip per-element state so a re-scan re-evaluates everything; with the
+  // 24 h cache in the service worker, hits are sub-millisecond.
+  document.querySelectorAll<HTMLElement>("[data-hm-id]").forEach((el) => {
+    delete el.dataset.hmId;
+    delete el.dataset.hmState;
   });
-  pruneFlaggedNodes();
+  flaggedNodes.length = 0;
+  currentNavIndex = -1;
   updateNavUI();
-  // Also close any open popover if its anchor is gone
-  if (popoverNodeId && !document.querySelector(`[data-hm-id="${popoverNodeId}"]`)) {
-    closePopover();
-  }
+  closePopover();
 }
 
 export function applyState(nodeId: string, state: RendererState): void {
