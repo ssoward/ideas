@@ -10,7 +10,7 @@ A Chrome extension (Manifest V3) that flags AI-generated text on any webpage. It
 - **Per-site control** — toggle scanning on/off for the current site from the popup, or maintain a global deny list in Settings.
 - **Privacy-first defaults** — heuristic mode never makes a network call.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for what changed in each release, [`PRIVACY.md`](PRIVACY.md) for the privacy policy.
+See [`CHANGELOG.md`](CHANGELOG.md) for what changed in each release, [`PRIVACY.md`](PRIVACY.md) for the privacy policy, [`RELEASE.md`](RELEASE.md) for the publish-to-store workflow.
 
 ## Install (developer mode)
 
