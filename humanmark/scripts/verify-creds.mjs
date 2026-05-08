@@ -31,14 +31,43 @@ const res = await fetch("https://oauth2.googleapis.com/token", {
 });
 const data = await res.json();
 
-if (res.ok && data.access_token) {
-  console.log("✓ Credentials valid.");
-  console.log(`  Access token issued (truncated): ${data.access_token.slice(0, 20)}…`);
-  console.log(`  Expires in: ${data.expires_in}s`);
-  console.log(`  Scope: ${data.scope ?? "(default)"}`);
-  console.log(`  Extension ID: ${env.EXTENSION_ID}`);
-} else {
-  console.error("✗ Credential check failed.");
+if (!res.ok || !data.access_token) {
+  console.error("✗ Credential check failed at OAuth token exchange.");
   console.error(JSON.stringify(data, null, 2));
   process.exit(1);
 }
+
+console.log("✓ OAuth token exchange succeeded.");
+console.log(`  Scope: ${data.scope ?? "(default)"}`);
+
+// Now confirm the Chrome Web Store API can be reached for our specific item.
+// GET /items/{id}?projection=DRAFT is read-only — confirms the extension ID
+// is valid and the access token has the right permissions, without touching
+// any state.
+const itemRes = await fetch(
+  `https://www.googleapis.com/chromewebstore/v1.1/items/${env.EXTENSION_ID}?projection=DRAFT`,
+  {
+    headers: {
+      Authorization: `Bearer ${data.access_token}`,
+      "x-goog-api-version": "2",
+    },
+  }
+);
+const itemData = await itemRes.json();
+
+if (!itemRes.ok) {
+  console.error("✗ Chrome Web Store API call failed.");
+  console.error(JSON.stringify(itemData, null, 2));
+  process.exit(1);
+}
+
+console.log("✓ Chrome Web Store API reachable for this item.");
+console.log(`  Extension ID: ${env.EXTENSION_ID}`);
+console.log(`  Upload state: ${itemData.uploadState ?? "(unknown)"}`);
+console.log(`  Public key fingerprint: ${(itemData.publicKey ?? "(none)").slice(0, 60)}…`);
+if (itemData.crxVersion) console.log(`  Latest crx version: ${itemData.crxVersion}`);
+if (itemData.itemError && itemData.itemError.length > 0) {
+  console.log(`  Item warnings: ${itemData.itemError.length}`);
+  for (const e of itemData.itemError) console.log(`    - ${e.error_code}: ${e.error_detail ?? ""}`);
+}
+console.log("\n✓ CLI is fully wired. You can run `npm run release` when ready.");
